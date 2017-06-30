@@ -1,0 +1,178 @@
+import java.awt.AWTException;
+import java.awt.Robot;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoField;
+import java.util.ArrayList;
+
+import javafx.animation.Animation;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
+import javafx.util.Duration;
+
+public class Bot {
+
+	private Character mAttack;
+	private boolean mIsHold;
+	private ArrayList<Character> mBuffs;
+	private ArrayList<Integer> mBuffsDuration;
+	private ArrayList<Integer> mMovements;
+	private ArrayList<Integer> mMovementsDuration;
+	
+	private Timeline botTimer;
+	private Robot robot;
+	private boolean isBotting = true;
+	private ArrayList<Timeline> buffTimers;
+	private ArrayList<Boolean> needToBuff;
+	private ArrayList<Integer> timeLeftForBuff;
+	private boolean isHolding = false;
+	private int currentMovementPosition = 0;
+	private boolean needToStartNewMovement = true;
+	private Timeline spamTimer;
+	private LocalDateTime endMoveDate;
+	
+	private boolean needToAttack = false;
+	private int nextAttackCountDown;
+	
+	public void startBotting(){
+		for(int i = 0; i < needToBuff.size(); i++){
+			if(needToBuff.get(i).booleanValue()){
+				if(mIsHold)
+					robot.keyRelease(mAttack);
+				useBuff(mBuffs.get(i));
+				needToBuff.set(i, false);
+				if(mIsHold)
+					robot.keyPress(mAttack);
+				return;
+			}
+		}
+		if(!mIsHold && needToAttack){
+			useBuff(mAttack);
+			needToAttack = false;
+			return;
+		}
+		if(mIsHold && !isHolding){
+			robot.keyPress(mAttack);
+			isHolding = true;
+			return;
+		}
+		if(needToStartNewMovement){
+			endMoveDate = LocalDateTime.now().plusSeconds(mMovementsDuration.get(currentMovementPosition));
+			endMoveDate.plus((int)(Math.random()*200), ChronoField.MILLI_OF_DAY.getBaseUnit());
+			robot.keyPress(mMovements.get(currentMovementPosition));
+			needToStartNewMovement = false;
+		}
+		else {
+			if(LocalDateTime.now().isAfter(endMoveDate)){
+				robot.keyRelease(mMovements.get(currentMovementPosition));
+				currentMovementPosition = (currentMovementPosition + 1) % mMovements.size();
+				needToStartNewMovement = true;
+			}
+		}
+	}
+	
+	public Bot(Character attack, boolean isHold, ArrayList<Character> buffs, ArrayList<Integer> buffsDuration, ArrayList<Integer> movements, ArrayList<Integer> movementsDuration){
+		mAttack = attack;
+		mIsHold = isHold;
+		mBuffs = buffs;
+		mBuffsDuration = buffsDuration;
+		mMovements = movements;
+		mMovementsDuration = movementsDuration;
+		
+		for(int i = 0; i < buffs.size(); i++){
+			System.out.println(buffs.get(i));
+		}
+		
+		try {
+			robot = new Robot();
+		} catch (AWTException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+		buffTimers = new ArrayList<>();
+		timeLeftForBuff = new ArrayList<>();
+		needToBuff = new ArrayList<>();
+		for(int i = 0; i < buffs.size(); i++){
+			needToBuff.add(false);
+		}
+		for(int i = 0; i < buffs.size(); i++){
+			final int j = i;
+			timeLeftForBuff.add((int)(Math.random()* 20));
+			buffTimers.add(new Timeline(new KeyFrame(Duration.millis(1000), ae -> startTimer(j))));
+			buffTimers.get(i).setCycleCount(Animation.INDEFINITE);
+			buffTimers.get(i).play();
+		}
+		
+		if(!isHold){
+			needToAttack = false;
+			nextAttackCountDown = (int)(Math.random() * 1500);
+			spamTimer = new Timeline(new KeyFrame(Duration.millis(100), ae -> spamTimer()));
+			spamTimer.setCycleCount(Animation.INDEFINITE);
+			spamTimer.play();
+		}
+		
+		botTimer = new Timeline(new KeyFrame(
+		        Duration.millis(100),
+		        ae -> startBotting()));
+		botTimer.setCycleCount(Animation.INDEFINITE);
+		botTimer.play();
+	}
+	
+	private void spamTimer() {
+		if(nextAttackCountDown <= 0){
+			nextAttackCountDown = (int)(Math.random() * 1500);
+			needToAttack = true;
+		}
+		else
+			nextAttackCountDown -= 100;
+	}
+
+	private void startTimer(int i){
+		if(timeLeftForBuff.get(i) > 0)
+			timeLeftForBuff.set(i, timeLeftForBuff.get(i)-1);
+		else {
+			timeLeftForBuff.set(i, mBuffsDuration.get(i));
+			needToBuff.set(i, true);
+		}
+	}
+	
+	public boolean isPlaying(){
+		return isBotting;
+	}
+	
+	public void stopBotting(){
+		for(int i = 0; i < buffTimers.size(); i++){
+			buffTimers.get(i).stop();
+		}
+		if(!mIsHold){
+			spamTimer.stop();
+		}
+		else
+			robot.keyRelease(mAttack);
+		botTimer.stop();
+		isBotting = false;
+	}
+	
+	public void useBuff(Character buff){
+		try {
+			Thread.sleep((long) (30 + Math.random()*20));
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		robot.keyPress(Character.toUpperCase(buff));
+		try {
+			Thread.sleep((long) (500 + Math.random()*50));
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		robot.keyRelease(Character.toUpperCase(buff));
+		try {
+			Thread.sleep((long) (10 + Math.random()*20));
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+}
